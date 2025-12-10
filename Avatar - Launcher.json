@@ -1,0 +1,96 @@
+{
+  "name": "Avatar - Launcher",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "https://api.heygen.com/v2/avatars",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"quality\": \"medium\",\n  \"avatar_name\": \"Adrian_public_2_20240312\",\n  \"voice\": {\n    \"voice_id\": \"2d5b0e6cf361460aa7fc47e3cee4b31c\"\n  },\n  \"version\": \"v2\",\n  \"video_encoding\": \"H264\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        192,
+        0
+      ],
+      "id": "44f99036-fea2-48dd-8b7e-12505174ec9b",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ZQP4250foYnujstA",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "=<!DOCTYPE html>\n<html>\n<head>\n    <title>Avatar Project</title>\n    <script src=\"https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js\"></script>\n    <style>\n        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }\n        \n        /* 1. Setup Screen Styles */\n        #setup-screen { background: #333; padding: 30px; border-radius: 10px; text-align: center; width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }\n        h2 { margin-top: 0; color: #fff; }\n        input, textarea, select { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: none; font-family: sans-serif; }\n        textarea { height: 80px; resize: none; }\n        \n        /* 2. Video Screen Styles */\n        #video-container { width: 640px; height: 360px; background: #000; border: 2px solid #333; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }\n        video { width: 100%; height: 100%; object-fit: cover; }\n        \n        /* Buttons */\n        .controls { display: flex; gap: 15px; justify-content: center; }\n        button { padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; background: #007bff; color: white; transition: 0.2s; }\n        button:hover { background: #0056b3; }\n        .btn-end { background: #dc3545; }\n        .btn-end:hover { background: #a71d2a; }\n        \n        .hidden { display: none; }\n        #status { color: #aaa; margin-top: 15px; font-style: italic; }\n    </style>\n</head>\n<body>\n\n    <div id=\"setup-screen\">\n        <h2>Avatar Setup</h2>\n        <input type=\"text\" id=\"clientName\" placeholder=\"Your Name (e.g. John)\" value=\"Guest\">\n        <textarea id=\"knowledgeBase\" placeholder=\"Enter Context (e.g., You are a senior car salesman at BMW...)\"></textarea>\n        <button onclick=\"startSession()\">Start Conversation</button>\n    </div>\n\n    <div id=\"main-interface\" class=\"hidden\">\n        <div id=\"video-container\">\n            <video id=\"media-element\" autoplay playsinline></video>\n        </div>\n        <div class=\"controls\">\n            <button onclick=\"startListening()\">🎤 Push to Talk</button>\n            <button class=\"btn-end\" onclick=\"endSession()\">❌ End & Save Report</button>\n        </div>\n        <div id=\"status\">Connecting...</div>\n    </div>\n\n    <script>\n        // --- CONFIGURATION ---\n        // 👇 PASTE YOUR NGROK URL HERE (No trailing slash)\n        const BASE_URL = \"https://lacerated-sarai-conceptually.ngrok-free.dev\"; \n        \n        const CHAT_URL = BASE_URL + \"/webhook/chat\";\n        const END_URL = BASE_URL + \"/webhook/end-session\";\n\n        // --- DATA FROM N8N ---\n        // Robust check for session data\n        const SESSION_ID = \"{{ $json.data.session_id }}\" || \"{{ $json.session_id }}\";\n        const TOKEN = \"{{ $json.data.access_token }}\" || \"{{ $json.access_token }}\";\n        const URL = \"{{ $json.data.url }}\" || \"{{ $json.url }}\";\n\n        let room;\n        let startTime = new Date();\n        let fullTranscript = [];\n        let clientName = \"\";\n        let knowledgeBase = \"\";\n\n        async function startSession() {\n            // 1. Capture values from the HTML inputs\n            clientName = document.getElementById('clientName').value || \"Guest\";\n            knowledgeBase = document.getElementById('knowledgeBase').value || \"You are a helpful assistant.\";\n            \n            // 2. Switch screens\n            document.getElementById('setup-screen').classList.add('hidden');\n            document.getElementById('main-interface').classList.remove('hidden');\n\n            // 3. Connect Video\n            try {\n                room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });\n                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {\n                    if (track.kind === 'video' || track.kind === 'audio') {\n                        track.attach(document.getElementById('media-element'));\n                    }\n                });\n                await room.connect(URL, TOKEN);\n                document.getElementById('status').innerText = \"Avatar Online! Ready.\";\n                \n                // 4. Send initial context (Invisible message to Brain)\n                fullTranscript.push(\"System: Context set to: \" + knowledgeBase);\n            } catch (e) {\n                document.getElementById('status').innerText = \"Connection Error: \" + e.message;\n                alert(\"Could not connect to Avatar. Check console for details.\");\n            }\n        }\n\n        function startListening() {\n            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;\n            if (!SpeechRecognition) { alert(\"Use Google Chrome\"); return; }\n\n            const recognition = new SpeechRecognition();\n            recognition.lang = 'en-US'; \n            recognition.start();\n            document.getElementById('status').innerText = \"Listening...\";\n\n            recognition.onresult = async (event) => {\n                const text = event.results[0][0].transcript;\n                document.getElementById('status').innerText = \"You said: \" + text;\n                fullTranscript.push(\"User: \" + text);\n                \n                // Send to Brain with the Context you typed\n                await fetch(CHAT_URL, {\n                    method: 'POST',\n                    headers: { 'Content-Type': 'application/json' },\n                    body: JSON.stringify({ \n                        session_id: SESSION_ID, \n                        message: text,\n                        system_prompt: knowledgeBase // <--- Sends your input to the AI\n                    })\n                });\n                document.getElementById('status').innerText = \"Avatar Speaking...\";\n            };\n        }\n\n        async function endSession() {\n            if (room) room.disconnect();\n            \n            const duration = ((new Date() - startTime) / 1000 / 60).toFixed(2);\n            const cost = (duration * 2).toFixed(2) + \" Credits\"; \n            \n            await fetch(END_URL, {\n                method: 'POST',\n                headers: { 'Content-Type': 'application/json' },\n                body: JSON.stringify({ \n                    transcript: fullTranscript.join(\"\\n\"),\n                    client_name: clientName,\n                    cost: cost\n                })\n            });\n            \n            alert(\"Report Generated!\\nClient: \" + clientName + \"\\nCost: \" + cost);\n            window.location.reload();\n        }\n    </script>\n</body>\n</html>",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        416,
+        0
+      ],
+      "id": "faa47b3d-1cbc-45bc-a242-8eb9deb60e06",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "path": "start",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "258774c8-6c83-4ccd-98cb-17f0004de6b9",
+      "name": "Webhook",
+      "webhookId": "982e8897-c635-4f2e-8e52-e9361d2e9eef"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "df2dff73-dbc2-495f-8a65-f1f7a7b0282c",
+  "meta": {
+    "instanceId": "99b82fbbd9a269c5f0cc534ee09ea722a1e7f0956e0665d3639488a9476f4970"
+  },
+  "id": "7UNyVFh85wWYYj1W",
+  "tags": []
+}

@@ -1,0 +1,234 @@
+{
+  "name": "Avatar - Extraction",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "end-session",
+        "authentication": "headerAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -16,
+        0
+      ],
+      "id": "5fff6a2f-009c-4aad-9081-5afba9c68ba0",
+      "name": "Webhook",
+      "webhookId": "f0c8dee9-b462-4370-b07d-28f7454ae956",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ZQP4250foYnujstA",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "e5d9befa-e5fe-492d-a0b2-c3299942920c",
+      "name": "When chat message received",
+      "webhookId": "c021b8da-8d92-4f44-8157-4b5bd8aa2c41"
+    },
+    {
+      "parameters": {
+        "messages": {
+          "messageValues": [
+            {
+              "message": "=You are a CRM Data Extractor. Here is a transcript of a call: {{ $json.body.transcript }}  Please extract the following details and format them exactly like this: Name: [Client Name] Phone: [Phone Number or \"N/A\"] Needs: [What do they want?] Summary: [1 sentence summary]"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        416,
+        0
+      ],
+      "id": "423bdaa3-6f69-4cce-80ed-7114dc9f4284",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        624,
+        0
+      ],
+      "id": "1c3dc094-0e30-40e7-9160-2c833a0b3546",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "eVxVPLJYmRiSVLTa",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1ihNpkfej9N49Y91JIK8UMs_zDlzqvu_wWhzvIexhm6o",
+          "mode": "list",
+          "cachedResultName": "Avatar - Launcher",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ihNpkfej9N49Y91JIK8UMs_zDlzqvu_wWhzvIexhm6o/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1ihNpkfej9N49Y91JIK8UMs_zDlzqvu_wWhzvIexhm6o/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Client Name": "{{ $node[\"Google Gemini Chat Model\"].json.output.name }}",
+            "Needs": "{{ $node[\"Google Gemini Chat Model\"].json.output.need }}",
+            "Full Transcript": "{{ $json.body.transcript }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Client Name",
+              "displayName": "Client Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Phone",
+              "displayName": "Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Needs",
+              "displayName": "Needs",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Full Transcript",
+              "displayName": "Full Transcript",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Cost Estimate",
+              "displayName": "Cost Estimate",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        768,
+        0
+      ],
+      "id": "e7f84aad-1fbf-45ed-926c-f25749a25e6f",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "f4HE01XVxRPzNQD4",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7f9df367-5428-42aa-ba85-9439b8fb73fb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "99b82fbbd9a269c5f0cc534ee09ea722a1e7f0956e0665d3639488a9476f4970"
+  },
+  "id": "PVT8dU2WfY1WEzZF",
+  "tags": []
+}
