@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Avatar Project</title>
+    <script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+    <style>
+        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; }
+        
+        /* 1. Setup Screen Styles */
+        #setup-screen { background: #333; padding: 30px; border-radius: 10px; text-align: center; width: 400px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h2 { margin-top: 0; color: #fff; }
+        input, textarea, select { width: 90%; padding: 12px; margin: 10px 0; border-radius: 5px; border: none; font-family: sans-serif; }
+        textarea { height: 80px; resize: none; }
+        
+        /* 2. Video Screen Styles */
+        #video-container { width: 640px; height: 360px; background: #000; border: 2px solid #333; margin-bottom: 20px; border-radius: 8px; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* Buttons */
+        .controls { display: flex; gap: 15px; justify-content: center; }
+        button { padding: 12px 25px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; font-weight: bold; background: #007bff; color: white; transition: 0.2s; }
+        button:hover { background: #0056b3; }
+        .btn-end { background: #dc3545; }
+        .btn-end:hover { background: #a71d2a; }
+        
+        .hidden { display: none; }
+        #status { color: #aaa; margin-top: 15px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <div id="setup-screen">
+        <h2>Avatar Setup</h2>
+        <input type="text" id="clientName" placeholder="Your Name (e.g. John)" value="Guest">
+        <textarea id="knowledgeBase" placeholder="Enter Context (e.g., You are a senior car salesman at BMW...)"></textarea>
+        <button onclick="startSession()">Start Conversation</button>
+    </div>
+
+    <div id="main-interface" class="hidden">
+        <div id="video-container">
+            <video id="media-element" autoplay playsinline></video>
+        </div>
+        <div class="controls">
+            <button onclick="startListening()">🎤 Push to Talk</button>
+            <button class="btn-end" onclick="endSession()">❌ End & Save Report</button>
+        </div>
+        <div id="status">Connecting...</div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        // 👇 PASTE YOUR NGROK URL HERE (No trailing slash)
+        const BASE_URL = "https://lacerated-sarai-conceptually.ngrok-free.dev"; 
+        
+        const CHAT_URL = BASE_URL + "/webhook/chat";
+        const END_URL = BASE_URL + "/webhook/end-session";
+
+        // --- DATA FROM N8N ---
+        // Robust check for session data
+        const SESSION_ID = "{{ $json.data.session_id }}" || "{{ $json.session_id }}";
+        const TOKEN = "{{ $json.data.access_token }}" || "{{ $json.access_token }}";
+        const URL = "{{ $json.data.url }}" || "{{ $json.url }}";
+
+        let room;
+        let startTime = new Date();
+        let fullTranscript = [];
+        let clientName = "";
+        let knowledgeBase = "";
+
+        async function startSession() {
+            // 1. Capture values from the HTML inputs
+            clientName = document.getElementById('clientName').value || "Guest";
+            knowledgeBase = document.getElementById('knowledgeBase').value || "You are a helpful assistant.";
+            
+            // 2. Switch screens
+            document.getElementById('setup-screen').classList.add('hidden');
+            document.getElementById('main-interface').classList.remove('hidden');
+
+            // 3. Connect Video
+            try {
+                room = new LivekitClient.Room({ adaptiveStream: true, dynacast: true });
+                room.on(LivekitClient.RoomEvent.TrackSubscribed, (track) => {
+                    if (track.kind === 'video' || track.kind === 'audio') {
+                        track.attach(document.getElementById('media-element'));
+                    }
+                });
+                await room.connect(URL, TOKEN);
+                document.getElementById('status').innerText = "Avatar Online! Ready.";
+                
+                // 4. Send initial context (Invisible message to Brain)
+                fullTranscript.push("System: Context set to: " + knowledgeBase);
+            } catch (e) {
+                document.getElementById('status').innerText = "Connection Error: " + e.message;
+                alert("Could not connect to Avatar. Check console for details.");
+            }
+        }
+
+        function startListening() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) { alert("Use Google Chrome"); return; }
+
+            const recognition = new SpeechRecognition();
+            recognition.lang = 'en-US'; 
+            recognition.start();
+            document.getElementById('status').innerText = "Listening...";
+
+            recognition.onresult = async (event) => {
+                const text = event.results[0][0].transcript;
+                document.getElementById('status').innerText = "You said: " + text;
+                fullTranscript.push("User: " + text);
+                
+                // Send to Brain with the Context you typed
+                await fetch(CHAT_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        session_id: SESSION_ID, 
+                        message: text,
+                        system_prompt: knowledgeBase // <--- Sends your input to the AI
+                    })
+                });
+                document.getElementById('status').innerText = "Avatar Speaking...";
+            };
+        }
+
+        async function endSession() {
+            if (room) room.disconnect();
+            
+            const duration = ((new Date() - startTime) / 1000 / 60).toFixed(2);
+            const cost = (duration * 2).toFixed(2) + " Credits"; 
+            
+            await fetch(END_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    transcript: fullTranscript.join("\n"),
+                    client_name: clientName,
+                    cost: cost
+                })
+            });
+            
+            alert("Report Generated!\nClient: " + clientName + "\nCost: " + cost);
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>
